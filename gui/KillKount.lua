@@ -17,7 +17,9 @@ local S = {
   search = "",
   continent = "---",
   zone = "---",
-  rows = {},
+  rows = {},            -- will now be “active sequence” for this render
+  pool = { section = {}, row = {} }, -- reusable frames by kind
+  id = 0,               -- unique name counter
 }
 
 -- =======================
@@ -47,37 +49,62 @@ end
 -- =======================
 -- Rows
 -- =======================
-local function AcquireRow(parent, i, kind)
-  local row = S.rows[i]
+local function AcquireRow(parent, prev, kind)
   local template = (kind == "section") and "KillKountSectionTemplate" or "KillKountRowTemplate"
+  local bucket   = (kind == "section") and S.pool.section or S.pool.row
+  local row = table.remove(bucket)
 
-  if not row or row._kind ~= kind then
-    if row then row:Hide() end
-    row = CreateFrame("Frame", parent:GetName().."Row"..i, parent, template) -- Frame, not Button
-    row._kind = kind
-    S.rows[i] = row
-    if i == 1 then
-      row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -2)
-    else
-      row:SetPoint("TOPLEFT", S.rows[i-1], "BOTTOMLEFT", 0, -2)
-    end
-    row:SetPoint("RIGHT", parent, "RIGHT")
+  if not row then
+    S.id = S.id + 1
+    local suffix = (kind == "section") and ("Sec"..S.id) or ("Row"..S.id)
+    local name = parent:GetName() .. suffix
+    row = CreateFrame("Frame", name, parent, template)
+  else
+    row:ClearAllPoints()
   end
+
+  row._kind = kind
+
+  -- (Re)bind child regions so we never depend on _G lookups later
+  row.Text  = nil
+  row.Left  = nil
+  row.Right = nil
+  if kind == "section" then
+    row.Text = _G[row:GetName().."Text"]
+  else
+    row.Left  = _G[row:GetName().."Left"]
+    row.Right = _G[row:GetName().."Right"]
+  end
+
+  -- anchor
+  if prev then
+    row:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -2)
+  else
+    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -2)
+  end
+  row:SetPoint("RIGHT", parent, "RIGHT")
+
   row:Show()
+  S.rows[#S.rows+1] = row
   return row
 end
 
-local function HideExtraRows(start)
-  for i = start, #S.rows do
+local function HideExtraRows(_startIgnored)
+  for i = 1, #S.rows do
     local r = S.rows[i]
     if r then
-      local n = r:GetName()
-      local L = _G[n.."Left"];  if L then L:SetText("") end
-      local R = _G[n.."Right"]; if R then R:SetText("") end
-      local T = _G[n.."Text"];  if T then T:SetText("") end
+      if r.Left  then r.Left:SetText("")  end
+      if r.Right then r.Right:SetText("") end
+      if r.Text  then r.Text:SetText("")  end
       r:Hide()
+      if r._kind == "section" then
+        table.insert(S.pool.section, r)
+      else
+        table.insert(S.pool.row, r)
+      end
     end
   end
+  wipe(S.rows)
 end
 
 -- =======================
@@ -156,17 +183,18 @@ end
 
 local function BuildDisplay()
   local sections = {}               -- map header -> section index
-  local ordered = {}                -- array of sections in display order
+  local ordered  = {}               -- array of sections in display order
 
   local function addItem(header, name, count)
     if count <= 0 then return end
     local idx = sections[header]
     if not idx then
       idx = #ordered + 1
-      ordered[idx] = { header = header, items = {} }
+      ordered[idx] = { header = header, items = {}, total = 0 }
       sections[header] = idx
     end
     table.insert(ordered[idx].items, { name = name, count = count })
+    ordered[idx].total = ordered[idx].total + count
   end
 
   local continentLabel = S.continent
@@ -223,36 +251,53 @@ function KillKount_Refresh()
   if not KillKountFrame or not KillKountFrame:IsShown() then return end
 
   local content = KillKountFrameScrollContent
+
+  -- Release all previously active rows first
+  HideExtraRows(1)
+
+  -- Build the data model for this view
   local model = BuildDisplay()
 
-  local rowIndex = 1
-  local totalItems = 0
+  local totalItems   = 0
   local sectionCount = 0
+  local prev
+
+  local function fmt(n)
+    if BreakUpLargeNumbers then return BreakUpLargeNumbers(n) end
+    return tostring(n or 0)
+  end
 
   if #model == 0 then
-    local srow = AcquireRow(content, rowIndex, "section")
-    _G[srow:GetName().."Text"]:SetText("No results")
-    rowIndex = rowIndex + 1
+    local srow = AcquireRow(content, prev, "section")
+    if srow.Text then srow.Text:SetText("No results") end
+    prev = srow
     sectionCount = 1
   else
     for _, sec in ipairs(model) do
-      local srow = AcquireRow(content, rowIndex, "section")
-      _G[srow:GetName().."Text"]:SetText(sec.header or "")
-      rowIndex = rowIndex + 1
+      local srow = AcquireRow(content, prev, "section")
+      if srow.Text then
+        -- Show "Zone Name — Total"
+        srow.Text:SetFormattedText("%s — %s", sec.header or "", fmt(sec.total or 0))
+      end
+      prev = srow
       sectionCount = sectionCount + 1
 
       for _, it in ipairs(sec.items) do
-        local row = AcquireRow(content, rowIndex, "row")
-        _G[row:GetName().."Left"]:SetText(it.name or "")
-        _G[row:GetName().."Right"]:SetText(it.count or 0)
-        rowIndex = rowIndex + 1
+        local row = AcquireRow(content, prev, "row")
+
+        -- "NPC Name: <number>" inline in left label
+        local name  = it.name or ""
+        local count = tonumber(it.count) or 0
+        if row.Left  then row.Left:SetFormattedText("%s: %s", name, fmt(count)) end
+        if row.Right then row.Right:SetText("") end
+
+        prev = row
         totalItems = totalItems + 1
       end
     end
   end
 
-  HideExtraRows(rowIndex)
-
+  -- Resize scroll content
   local height = (sectionCount * 20) + (totalItems * 18) + 8
   if content.SetHeight then content:SetHeight(math.max(height, 1)) end
 
@@ -265,18 +310,15 @@ function KillKount_Refresh()
   KillKountFrameStatus:SetText(string.format("%d entries", totalItems))
 end
 
-function KillKount_Reset()
-  ns.KK.ResetCurrentCharacter()
-  KillKount_Refresh()
-  ns.log("Current character data reset.")
-end
-
 -- =======================
 -- Search / checkbox
 -- =======================
 function KillKount_OnSearchChanged(box)
-  S.search = string.lower(box:GetText() or "")
-  KillKount_Refresh()
+  local q = (box:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
+  if S.search ~= q then
+    S.search = q
+    KillKount_Refresh()
+  end
 end
 
 function KillKount_OnCharOnlyChanged(checked)

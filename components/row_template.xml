@@ -18,19 +18,20 @@
     <Size x="1" y="18"/>
     <Layers>
       <Layer level="ARTWORK">
-        <FontString name="$parentLeft"  inherits="GameFontNormalSmall" justifyH="LEFT"  maxLines="1" nonspacewrap="true">
-          <Anchors>
-            <Anchor point="LEFT"  x="12" y="0"/>
-            <Anchor point="RIGHT" x="-60" y="0"/>
-          </Anchors>
-        </FontString>
         <FontString name="$parentRight" inherits="GameFontNormalSmall" justifyH="RIGHT" maxLines="1" nonspacewrap="true">
           <Anchors>
             <Anchor point="RIGHT" x="-12" y="0"/>
           </Anchors>
         </FontString>
+
+        <FontString name="$parentLeft" inherits="GameFontNormalSmall" justifyH="LEFT" maxLines="1" nonspacewrap="true">
+          <Anchors>
+            <Anchor point="LEFT"  x="12" y="0"/>
+            <!-- keep an 8px gap to the count -->
+            <Anchor point="RIGHT" relativeTo="$parentRight" relativePoint="LEFT" x="-8" y="0"/>
+          </Anchors>
+        </FontString>
       </Layer>
     </Layers>
   </Frame>
-
 </Ui>

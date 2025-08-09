@@ -1,0 +1,15 @@
+## Interface: 50500
+## Title: KillKount
+## Author: Henk
+## Notes: Tracks per-character NPC kill counts across all zones and instances.
+## Version: 1.1.0
+## SavedVariables: KillKountDB, KillKountFrameState
+
+utils.lua
+core.lua
+commands.lua
+tooltip.lua
+components/row_template.xml
+Data/ContinentZoneData.lua
+gui/KillKount.lua
+gui/KillKount.xml

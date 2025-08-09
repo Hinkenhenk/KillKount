@@ -1,0 +1,11 @@
+# Ignore WoW SavedVariables and caches
+WTF/
+Cache/
+Logs/
+SavedVariables/
+*.bak
+*.tmp
+
+# Ignore VS Code settings
+.vscode/
+luarc.json

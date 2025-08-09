@@ -47,16 +47,13 @@ end
 -- =======================
 -- Rows
 -- =======================
--- =======================
--- Rows
--- =======================
 local function AcquireRow(parent, i, kind)
   local row = S.rows[i]
   local template = (kind == "section") and "KillKountSectionTemplate" or "KillKountRowTemplate"
 
   if not row or row._kind ~= kind then
     if row then row:Hide() end
-    row = CreateFrame("Button", parent:GetName().."Row"..i, parent, template)
+    row = CreateFrame("Frame", parent:GetName().."Row"..i, parent, template) -- Frame, not Button
     row._kind = kind
     S.rows[i] = row
     if i == 1 then
@@ -73,7 +70,13 @@ end
 local function HideExtraRows(start)
   for i = start, #S.rows do
     local r = S.rows[i]
-    if r then r:Hide() end
+    if r then
+      local n = r:GetName()
+      local L = _G[n.."Left"];  if L then L:SetText("") end
+      local R = _G[n.."Right"]; if R then R:SetText("") end
+      local T = _G[n.."Text"];  if T then T:SetText("") end
+      r:Hide()
+    end
   end
 end
 
@@ -151,8 +154,6 @@ local function PassesFilters(rec)
   return true
 end
 
--- Returns a table like:
--- { { header = "Outland - Shadowmoon Valley", items = { {name="Enraged Air Spirit", count=1}, ... } }, ... }
 local function BuildDisplay()
   local sections = {}               -- map header -> section index
   local ordered = {}                -- array of sections in display order
@@ -173,12 +174,10 @@ local function BuildDisplay()
 
   for _, rec in ipairs(ns.KK.IterateNPCs()) do
     if PassesFilters(rec) then
-      -- Walk the per-zone counts for this NPC and add only the ones that match current view
       for zoneKey, count in pairs(rec.byZone or {}) do
         local isWorld = isWorldZoneKey(zoneKey)
         local zname   = displayZoneFromKey(zoneKey)
 
-        -- filter logic matches PassesFilters, but localized per zone entry
         local zoneOK = true
         if endsWith(S.continent, " Dungeons") or endsWith(S.continent, " Raids") then
           zoneOK = not isWorld
@@ -188,7 +187,6 @@ local function BuildDisplay()
         elseif S.continent ~= "---" then
           zoneOK = isWorld and ((S.zone == "---" and true) or (zname == S.zone))
           if zoneOK and S.zone == "---" then
-            -- still require it to belong to the chosen continent list
             local allowed = toSet(CZ[S.continent] or {})
             zoneOK = allowed[zname] == true
           end
@@ -207,7 +205,6 @@ local function BuildDisplay()
     end
   end
 
-  -- sort sections by header; items by count desc, then name
   table.sort(ordered, function(a,b) return a.header < b.header end)
   for _, sec in ipairs(ordered) do
     table.sort(sec.items, function(a,b)
@@ -230,28 +227,40 @@ function KillKount_Refresh()
 
   local rowIndex = 1
   local totalItems = 0
+  local sectionCount = 0
 
-  for _, sec in ipairs(model) do
-    -- section header
+  if #model == 0 then
     local srow = AcquireRow(content, rowIndex, "section")
-    _G[srow:GetName().."Text"]:SetText(sec.header)
+    _G[srow:GetName().."Text"]:SetText("No results")
     rowIndex = rowIndex + 1
-
-    -- items
-    for _, it in ipairs(sec.items) do
-      local row = AcquireRow(content, rowIndex, "row")
-      _G[row:GetName().."Left"]:SetText(it.name)
-      _G[row:GetName().."Right"]:SetText(it.count)
+    sectionCount = 1
+  else
+    for _, sec in ipairs(model) do
+      local srow = AcquireRow(content, rowIndex, "section")
+      _G[srow:GetName().."Text"]:SetText(sec.header or "")
       rowIndex = rowIndex + 1
-      totalItems = totalItems + 1
+      sectionCount = sectionCount + 1
+
+      for _, it in ipairs(sec.items) do
+        local row = AcquireRow(content, rowIndex, "row")
+        _G[row:GetName().."Left"]:SetText(it.name or "")
+        _G[row:GetName().."Right"]:SetText(it.count or 0)
+        rowIndex = rowIndex + 1
+        totalItems = totalItems + 1
+      end
     end
   end
 
   HideExtraRows(rowIndex)
 
-  -- approx height: 20 for section rows, 18 for item rows. Worst-case, treat all as 18 + padding.
-  local height = (rowIndex - 1) * 18 + 8
-  content:SetSize(1, math.max(height, 1))
+  local height = (sectionCount * 20) + (totalItems * 18) + 8
+  if content.SetHeight then content:SetHeight(math.max(height, 1)) end
+
+  local scroll = KillKountFrameScroll
+  if scroll and content and content:GetWidth() < 50 then
+    local avail = (scroll:GetWidth() or 480) - 20 -- scrollbar + padding
+    if avail > 50 then content:SetWidth(avail) end
+  end
 
   KillKountFrameStatus:SetText(string.format("%d entries", totalItems))
 end
@@ -324,7 +333,6 @@ function KillKount_InitZoneDrop(self, level)
   local dd = KillKountFrameZoneDrop
   local selected = (S.zone ~= "---") and S.zone or nil
 
-  -- keep label in sync on open
   if selected then
     UIDropDownMenu_SetSelectedValue(dd, selected)
     UIDropDownMenu_SetText(dd, selected)
@@ -334,7 +342,6 @@ function KillKount_InitZoneDrop(self, level)
   end
 
   local function pick(btn)
-    -- MoP quirk: btn.text is often nil; use GetText()
     local label = (btn.GetText and btn:GetText()) or btn.text or tostring(btn.value)
 
     S.zone = btn.value
@@ -375,23 +382,80 @@ end
 function KillKount_OnLoad(self)
   RestorePosition(self)
 
+  -- Try classic backdrop first (works if not skinned)
   if self.SetBackdrop then
     self:SetBackdrop({
-      bgFile   = "Interface\\DialogFrame\\UI-DialogBox-Background",
+      bgFile   = "Interface\\ChatFrame\\ChatFrameBackground",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
       tile     = true, tileSize = 16, edgeSize = 16,
-      insets   = { left = 4, right = 4, top = 4, bottom = 4 },
+      insets   = { left = 5, right = 5, top = 5, bottom = 5 },
     })
+    self:SetBackdropColor(0, 0, 0, 0.85)
+    self:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+  end
+  self:SetFrameStrata("DIALOG")
+
+  -- Hard background + 1px border (skin-proof)
+  do
+    if not self._kkBG then
+      local bg = self:CreateTexture(nil, "BACKGROUND")
+      bg:SetTexture("Interface\\Buttons\\WHITE8x8")
+      bg:SetVertexColor(0, 0, 0, 0.85)
+      bg:SetPoint("TOPLEFT", 1, -1)
+      bg:SetPoint("BOTTOMRIGHT", -1, 1)
+      self._kkBG = bg
+    end
+    local function edge(field, a1, x1, y1, a2, x2, y2, w, h)
+      local t = self[field] or self:CreateTexture(nil, "BORDER")
+      self[field] = t
+      t:SetTexture("Interface\\Buttons\\WHITE8x8")
+      t:SetVertexColor(0.35, 0.35, 0.35, 1)
+      t:ClearAllPoints()
+      t:SetPoint(a1, self, a1, x1, y1)
+      t:SetPoint(a2, self, a2, x2, y2)
+      if w then t:SetWidth(w) end
+      if h then t:SetHeight(h) end
+    end
+    edge("_kkTop",    "TOPLEFT",   1, -1, "TOPRIGHT",   -1, -1, nil, 1)
+    edge("_kkBottom", "BOTTOMLEFT",1,  1, "BOTTOMRIGHT", -1,  1, nil, 1)
+    edge("_kkLeft",   "TOPLEFT",   1, -1, "BOTTOMLEFT",  1,  1, 1,  nil)
+    edge("_kkRight",  "TOPRIGHT", -1, -1, "BOTTOMRIGHT", -1,  1, 1,  nil)
   end
 
   self:SetClampedToScreen(true)
   self:SetResizable(true)
   if self.SetResizeBounds then
-    self:SetResizeBounds(380, 260, 1600, 1200)
+    -- keep your current bounds; adjust if you want later
+    self:SetResizeBounds(280, 350, 280, 800)
   end
 
-  if KillKountFrameSearch and KillKountFrameSearch.SetMaxLetters then
-    KillKountFrameSearch:SetMaxLetters(60)
+  if KillKountFrameSearch then
+    if KillKountFrameSearch.SetMaxLetters then
+      KillKountFrameSearch:SetMaxLetters(60)
+    end
+    KillKountFrameSearch:SetAutoFocus(false)
+    KillKountFrameSearch:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    KillKountFrameSearch:SetScript("OnEnterPressed",  function(self) self:ClearFocus() end)
+
+    if not KillKountSearchFocusDrop then
+      local catcher = CreateFrame("Button", "KillKountSearchFocusDrop", UIParent)
+      catcher:SetAllPoints(UIParent)
+      catcher:EnableMouse(true)
+      catcher:Hide()
+      catcher:SetFrameStrata("FULLSCREEN_DIALOG")
+      catcher:SetScript("OnMouseDown", function()
+        if KillKountFrameSearch and KillKountFrameSearch:HasFocus() then
+          KillKountFrameSearch:ClearFocus()
+        end
+        catcher:Hide()
+      end)
+    end
+
+    KillKountFrameSearch:SetScript("OnEditFocusGained", function() KillKountSearchFocusDrop:Show() end)
+    KillKountFrameSearch:SetScript("OnEditFocusLost",   function(self)
+      self:HighlightText(0, 0)
+      if KillKountSearchFocusDrop then KillKountSearchFocusDrop:Hide() end
+    end)
   end
 
   if not self.Resizer then
@@ -412,13 +476,13 @@ function KillKount_OnLoad(self)
 
   self:SetScript("OnSizeChanged", function(_, w)
     if KillKountFrameScrollContent then
-      KillKountFrameScrollContent:SetWidth(math.max(1, w - 40))
+      KillKountFrameScrollContent:SetWidth(math.max(1, w - 0))
     end
   end)
 
   local w = self:GetWidth() or 480
   if KillKountFrameScrollContent then
-    KillKountFrameScrollContent:SetWidth(math.max(1, w - 40))
+    KillKountFrameScrollContent:SetWidth(math.max(1, w - 0))
   end
 
   if not self.ScaleWatcher then
@@ -436,12 +500,12 @@ function KillKount_OnLoad(self)
   end
 
   UIDropDownMenu_Initialize(KillKountFrameContinentDrop, KillKount_InitContinentDrop)
-  UIDropDownMenu_SetWidth(KillKountFrameContinentDrop, 180)
+  UIDropDownMenu_SetWidth(KillKountFrameContinentDrop, 200) -- same width
   UIDropDownMenu_SetSelectedValue(KillKountFrameContinentDrop, S.continent)
   UIDropDownMenu_SetText(KillKountFrameContinentDrop, S.continent)
 
   UIDropDownMenu_Initialize(KillKountFrameZoneDrop, KillKount_InitZoneDrop)
-  UIDropDownMenu_SetWidth(KillKountFrameZoneDrop, 200)
+  UIDropDownMenu_SetWidth(KillKountFrameZoneDrop, 200)       -- same width
 
   if S.zone ~= "---" then
     KillKountFrameZoneDrop.selectedValue = S.zone
@@ -467,3 +531,24 @@ function ns.GUI_Show() KillKountFrame:Show() end
 function ns.GUI_Hide() KillKountFrame:Hide() end
 function ns.GUI_Toggle() if KillKountFrame:IsShown() then KillKountFrame:Hide() else KillKountFrame:Show() end end
 function ns.GUI_Refresh() KillKount_Refresh() end
+
+do
+  local want = false
+  local t = 0
+  local driver = CreateFrame("Frame")
+  driver:SetScript("OnUpdate", function(_, dt)
+    if not want then return end
+    t = t + dt
+    if t > 0.1 then
+      want = false
+      t = 0
+      if KillKountFrame and KillKountFrame:IsShown() then
+        KillKount_Refresh()
+      end
+    end
+  end)
+
+  function ns.GUI_RequestRefresh()
+    want = true
+  end
+end

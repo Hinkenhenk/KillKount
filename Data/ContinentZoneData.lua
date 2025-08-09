@@ -39,10 +39,10 @@ ns.ContinentZones = {
   ["Eastern Kingdoms Dungeons"] = {
     "The Deadmines","The Stockade","Shadowfang Keep","Scarlet Monastery","Scarlet Halls",
     "Scholomance","Stratholme","Uldaman","Blackrock Depths","Lower Blackrock Spire","Upper Blackrock Spire",
-    "The Bastion of Twilight (5-player wings do not exist)","Grim Batol","The Stonecore","The Deadmines (Heroic)",
+    "The Bastion of Twilight","Grim Batol","The Stonecore","Magisters' Terrace",
   },
   ["Eastern Kingdoms Raids"] = {
-    "Molten Core","Blackwing Lair","Zul'Gurub","Karazhan","Magisters' Terrace (5-player, not raid)",
+    "Molten Core","Blackwing Lair","Zul'Gurub","Karazhan",
     "Blackwing Descent","Bastion of Twilight","Throne of the Four Winds",
   },
 

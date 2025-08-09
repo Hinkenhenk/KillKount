@@ -1,6 +1,5 @@
 local AddonName, ns = ...
 
--- Public namespace table
 local KK = {}
 ns.KK = KK
 
@@ -27,6 +26,31 @@ FRAME:RegisterEvent("ADDON_LOADED")
 FRAME:RegisterEvent("PLAYER_LOGIN")
 FRAME:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
+--========================
+-- Helpers
+--========================
+local function IsPlayerOrOwned(guid)
+    if not guid then return false end
+    local t, _, _, _, _, ownerFlag = strsplit("-", guid)
+    -- player or vehicle
+    if t == "Player" or t == "Vehicle" then return true end
+    -- pet/guardian owned by the player
+    if (t == "Pet" or t == "Guardian") and ownerFlag == UnitGUID("player") then
+        return true
+    end
+    -- fallback: compare to pet unit
+    return UnitGUID("pet") == guid
+end
+
+local function IsNPCGUID(guid)
+    if not guid then return false end
+    local t = guid and guid:match("^(%w+)-")
+    return t == "Creature" or t == "Vehicle"
+end
+
+--========================
+-- DB management
+--========================
 local function EnsureDB()
     KillKountDB = KillKountDB or { version = 1, chars = {} }
     local charKey = ns.GetCharKey()
@@ -61,7 +85,12 @@ function KK.IterateNPCs()
     local out = {}
     local charDB = EnsureDB()
     for npcID, rec in pairs(charDB.byNPC) do
-        out[#out+1] = { npcID = npcID, name = rec.name or ("NPC:"..npcID), total = rec.total or 0, byZone = rec.byZone or {} }
+        out[#out+1] = {
+            npcID = npcID,
+            name = rec.name or ("NPC:"..npcID),
+            total = rec.total or 0,
+            byZone = rec.byZone or {}
+        }
     end
     table.sort(out, function(a, b)
         if a.total == b.total then
@@ -83,18 +112,28 @@ end
 --========================
 -- Event handling
 --========================
-
 local function OnCombatLogEventUnfiltered()
-    local timestamp, subevent, _, srcGUID, _, _, _, dstGUID, dstName = CombatLogGetCurrentEventInfo()
+    local _, subevent, _, srcGUID, _, _, _, dstGUID, dstName = CombatLogGetCurrentEventInfo()
+
     if subevent ~= "PARTY_KILL" then return end
-    -- Only count kills YOU (the player) made
-    if srcGUID ~= UnitGUID("player") then return end
+
+    -- credit kills from you, your pet/guardian, or your vehicle
+    if not IsPlayerOrOwned(srcGUID) then return end
+
+    -- only NPCs (ignore players)
+    if not IsNPCGUID(dstGUID) then return end
 
     local npcID = ns.GetNPCIDFromGUID(dstGUID)
     if not npcID then return end
 
     local loc = ns.GetLocationContext()
-    ns.KK.RecordKill(npcID, dstName, loc)
+    ns.KK.RecordKill(npcID, dstName or ("NPC:"..tostring(npcID)), loc)
+
+    if ns and ns.GUI_RequestRefresh then
+        ns.GUI_RequestRefresh()
+    elseif ns and ns.GUI_Refresh then
+        ns.GUI_Refresh()
+    end
 end
 
 FRAME:SetScript("OnEvent", function(_, event, arg1)

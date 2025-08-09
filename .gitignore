@@ -9,4 +9,3 @@ SavedVariables/
 # Ignore VS Code settings
 .vscode/
 luarc.json
-.gitignore

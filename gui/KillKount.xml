@@ -1,122 +1,71 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
 
-  <!-- Main frame -->
-  <Frame name="KillKountFrame" parent="UIParent"
-         hidden="true" movable="true" enableMouse="true"
-         clampedToScreen="true" inherits="BackdropTemplate">
-
+  <Frame name="KillKountFrame" parent="UIParent" hidden="true" movable="true" enableMouse="true" clampedToScreen="true">
     <Size x="480" y="480"/>
-    <Anchors>
-      <Anchor point="CENTER"/>
-    </Anchors>
+    <Anchors><Anchor point="CENTER"/></Anchors>
 
-    <!-- Title + Footer live in Layers (MoP-safe) -->
     <Layers>
       <Layer level="ARTWORK">
-        <!-- Title -->
         <FontString name="$parentTitle" inherits="GameFontNormalLarge" text="KillKount">
-          <Anchors>
-            <Anchor point="TOPLEFT" x="12" y="-10"/>
-          </Anchors>
-        </FontString>
-
-        <!-- Footer status -->
-        <FontString name="$parentStatus" inherits="GameFontDisableSmall" justifyH="LEFT" text="Ready">
-          <Anchors>
-            <Anchor point="BOTTOMLEFT" x="12" y="12"/>
-          </Anchors>
+          <Anchors><Anchor point="TOPLEFT" x="20" y="-16"/></Anchors>
         </FontString>
       </Layer>
     </Layers>
 
-    <!-- Dragging + lifecycle -->
     <Scripts>
       <OnLoad function="KillKount_OnLoad"/>
       <OnShow function="KillKount_OnShow"/>
       <OnHide function="KillKount_OnHide"/>
-      <OnMouseDown>
-        if button == "LeftButton" then self:StartMoving() end
-      </OnMouseDown>
-      <OnMouseUp>
-        self:StopMovingOrSizing()
-        if KillKount_SaveFramePosition then KillKount_SaveFramePosition(self) end
-      </OnMouseUp>
+      <OnMouseDown> if button == "LeftButton" then self:StartMoving() end </OnMouseDown>
+      <OnMouseUp> self:StopMovingOrSizing(); if KillKount_SaveFramePosition then KillKount_SaveFramePosition(self) end </OnMouseUp>
     </Scripts>
 
     <Frames>
 
-      <!-- Search box (no <MaxLetters> tag; set in Lua) -->
-      <EditBox name="$parentSearch" autoFocus="false" inherits="InputBoxTemplate">
-        <Size x="180" y="20"/>
-        <Anchors>
-          <Anchor point="TOPLEFT" x="12" y="-36"/>
-        </Anchors>
-        <Scripts>
-          <OnTextChanged>
-            if KillKount_OnSearchChanged then KillKount_OnSearchChanged(self) end
-          </OnTextChanged>
-        </Scripts>
-      </EditBox>
+      <!-- Close button -->
+      <Button name="$parentClose" inherits="UIPanelCloseButton">
+        <Anchors><Anchor point="TOPRIGHT" x="-6" y="-6"/></Anchors>
+      </Button>
 
       <!-- Continent dropdown -->
       <Button name="$parentContinentDrop" inherits="UIDropDownMenuTemplate">
         <Anchors>
-          <Anchor point="LEFT" relativeTo="$parentSearch" relativePoint="RIGHT" x="8" y="0"/>
+          <Anchor point="TOPLEFT" relativeTo="$parentTitle" relativePoint="BOTTOMLEFT" x="-8" y="-8"/>
         </Anchors>
       </Button>
 
-      <!-- Zone dropdown -->
+      <!-- Zone dropdown (now below continent) -->
       <Button name="$parentZoneDrop" inherits="UIDropDownMenuTemplate">
         <Anchors>
-          <Anchor point="LEFT" relativeTo="$parentContinentDrop" relativePoint="RIGHT" x="0" y="0"/>
+          <Anchor point="TOPLEFT" relativeTo="$parentContinentDrop" relativePoint="BOTTOMLEFT" x="0" y="-4"/>
         </Anchors>
       </Button>
 
-      <!-- Character-only toggle -->
-      <CheckButton name="$parentCharOnly" inherits="UICheckButtonTemplate">
+      <!-- Search (below dropdowns) -->
+      <EditBox name="$parentSearch" autoFocus="false" inherits="InputBoxTemplate">
+        <Size x="100" y="20"/>
         <Anchors>
-          <Anchor point="LEFT" relativeTo="$parentZoneDrop" relativePoint="RIGHT" x="20" y="0"/>
+          <Anchor point="TOPLEFT" relativeTo="$parentZoneDrop" relativePoint="BOTTOMLEFT" x="26" y="-8"/>
         </Anchors>
         <Scripts>
-          <OnLoad>
-            _G[self:GetName().."Text"]:SetText("This character")
-          </OnLoad>
-          <OnClick>
-            if KillKount_OnCharOnlyChanged then KillKount_OnCharOnlyChanged(self:GetChecked()) end
-          </OnClick>
+          <OnTextChanged> if KillKount_OnSearchChanged then KillKount_OnSearchChanged(self) end </OnTextChanged>
+        </Scripts>
+      </EditBox>
+
+      <!-- Char-only -->
+      <CheckButton name="$parentCharOnly" inherits="UICheckButtonTemplate">
+        <Anchors><Anchor point="LEFT" relativeTo="$parentSearch" relativePoint="RIGHT" x="16" y="0"/></Anchors>
+        <Scripts>
+          <OnLoad> _G[self:GetName().."Text"]:SetText("This character") </OnLoad>
+          <OnClick> if KillKount_OnCharOnlyChanged then KillKount_OnCharOnlyChanged(self:GetChecked()) end </OnClick>
         </Scripts>
       </CheckButton>
 
-      <!-- Top-right buttons -->
-      <Button name="$parentRefresh" inherits="UIPanelButtonTemplate" text="Refresh">
-        <Size x="80" y="22"/>
-        <Anchors>
-          <Anchor point="TOPRIGHT" x="-12" y="-36"/>
-        </Anchors>
-        <Scripts>
-          <OnClick>
-            if KillKount_Refresh then KillKount_Refresh() end
-          </OnClick>
-        </Scripts>
-      </Button>
-
-      <Button name="$parentReset" inherits="UIPanelButtonTemplate" text="Reset">
-        <Size x="80" y="22"/>
-        <Anchors>
-          <Anchor point="RIGHT" relativeTo="$parentRefresh" relativePoint="LEFT" x="-8" y="0"/>
-        </Anchors>
-        <Scripts>
-          <OnClick>
-            if KillKount_Reset then KillKount_Reset() end
-          </OnClick>
-        </Scripts>
-      </Button>
-
-      <!-- Scroll area -->
+      <!-- Scroll area (wider insets for dialog border) -->
       <ScrollFrame name="$parentScroll" inherits="UIPanelScrollFrameTemplate">
         <Anchors>
-          <Anchor point="TOPLEFT" x="12" y="-80"/>
-          <Anchor point="BOTTOMRIGHT" x="-28" y="36"/>
+          <Anchor point="TOPLEFT" x="15" y="-180"/> <!-- lower start because dropdowns are taller -->
+          <Anchor point="BOTTOMRIGHT" x="-25" y="56"/> <!-- -44 instead of -36 to give more gap -->
         </Anchors>
         <ScrollChild>
           <Frame name="$parentContent">
@@ -124,6 +73,28 @@
           </Frame>
         </ScrollChild>
       </ScrollFrame>
+
+      <!-- Footer status -->
+      <Frame name="$parentStatusFrame">
+        <Size x="300" y="20"/> <!-- fixed width so it doesn't expand -->
+        <Anchors>
+          <Anchor point="BOTTOMLEFT" x="20" y="16"/>
+        </Anchors>
+        <Layers>
+          <Layer level="OVERLAY">
+            <FontString name="KillKountFrameStatus" inherits="GameFontDisableSmall" justifyH="LEFT" text="Ready"/>
+          </Layer>
+        </Layers>
+      </Frame>
+
+      <!-- Reset bottom-right -->
+      <Button name="$parentReset" inherits="UIPanelButtonTemplate" text="Reset">
+        <Size x="80" y="22"/>
+        <Anchors><Anchor point="BOTTOMRIGHT" x="-20" y="12"/></Anchors>
+        <Scripts>
+          <OnClick> if KillKount_Reset then KillKount_Reset() end </OnClick>
+        </Scripts>
+      </Button>
 
     </Frames>
   </Frame>

@@ -1,6 +1,5 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
 
-  <!-- Section header: e.g. "Outland - Shadowmoon Valley" -->
   <Frame name="KillKountSectionTemplate" virtual="true" enableMouse="false">
     <Size x="1" y="20"/>
     <Layers>
@@ -15,12 +14,11 @@
     </Layers>
   </Frame>
 
-  <!-- Data row: left = mob name, right = count -->
   <Frame name="KillKountRowTemplate" virtual="true" enableMouse="false">
     <Size x="1" y="18"/>
     <Layers>
       <Layer level="ARTWORK">
-        <FontString name="$parentLeft" inherits="GameFontNormalSmall" justifyH="LEFT" maxLines="1" nonspacewrap="true">
+        <FontString name="$parentLeft"  inherits="GameFontNormalSmall" justifyH="LEFT"  maxLines="1" nonspacewrap="true">
           <Anchors>
             <Anchor point="LEFT"  x="12" y="0"/>
             <Anchor point="RIGHT" x="-60" y="0"/>
